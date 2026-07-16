@@ -1,209 +1,102 @@
-import {
-  BarChart3,
-  BriefcaseBusiness,
-  CalendarDays,
-  FileText,
-  LayoutDashboard,
-  Settings,
-  Building2,
-  Search,
-  Plus,
-} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import ApplicationForm from "./components/applications/ApplicationForm";
+import Header from "./components/layout/Header";
+import Sidebar from "./components/layout/Sidebar";
+import { DEFAULT_SETTINGS, DEFAULT_SORT_COLUMN } from "./constants/defaults";
+import useDashboard from "./hooks/useDashboard";
+import useFilters from "./hooks/useFilters";
+import useWorkspace from "./hooks/useWorkspace";
+import Applications from "./pages/Applications";
+import Dashboard from "./pages/Dashboard";
+import Goals from "./pages/Goals";
+import Settings from "./pages/Settings";
+import Welcome from "./pages/Welcome";
 
-const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, active: true },
-  { label: "Applications", icon: BriefcaseBusiness },
-  { label: "Companies", icon: Building2 },
-  { label: "Documents", icon: FileText },
-  { label: "Calendar", icon: CalendarDays },
-  { label: "Analytics", icon: BarChart3 },
-  { label: "Settings", icon: Settings },
-];
+import type { ApplicationFilter, ApplicationFormData, ApplicationRow } from "./types/application";
+import type { AppSettings } from "./types/settings";
+import type { AppPage } from "./types/workspace";
+import { dateOnly } from "./utils/dates";
 
-const metrics = [
-  { label: "Applications", value: "126", helper: "+8 this week" },
-  { label: "Interviews", value: "18", helper: "2 upcoming" },
-  { label: "Offers", value: "3", helper: "1 pending" },
-  { label: "Response Rate", value: "14.2%", helper: "+2.1% from last month" },
-];
+export default function App() {
+  const workspace = useWorkspace();
+  const dashboard = useDashboard(workspace.rows);
+  const [page, setPage] = useState<AppPage>("dashboard");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<ApplicationFilter[]>([]);
+  const [sortColumn, setSortColumn] = useState(DEFAULT_SORT_COLUMN);
+  const [ascending, setAscending] = useState(false);
+  const [editing, setEditing] = useState<ApplicationRow | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("applyflow_settings") ?? "") as AppSettings;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
 
-const focusItems = [
-  "Finish Cisco online assessment",
-  "Tailor resume for Adobe Frontend role",
-  "Follow up with Microsoft recruiter",
-];
+  const filteredRows = useFilters(workspace.rows, search, filters, sortColumn, ascending);
 
-const recentApplications = [
-  {
-    company: "Cisco",
-    role: "Software Engineer II",
-    status: "Applied",
-    updated: "Yesterday",
-  },
-  {
-    company: "Adobe",
-    role: "Frontend Engineer",
-    status: "Draft",
-    updated: "Today",
-  },
-  {
-    company: "Apple",
-    role: "Software Engineer",
-    status: "Interview",
-    updated: "2 days ago",
-  },
-];
+  useEffect(() => {
+    localStorage.setItem("applyflow_settings", JSON.stringify(settings));
+  }, [settings]);
 
-function App() {
-  return (
-    <div className="min-h-screen bg-[#f7f7f8] text-[#111827]">
-      <aside className="fixed left-0 top-0 h-screen w-64 border-r border-gray-200 bg-white px-4 py-5">
-        <div className="mb-8 px-2">
-          <h1 className="text-lg font-semibold tracking-tight">ApplyFlow</h1>
-          <p className="mt-1 text-sm text-gray-500">Career workspace</p>
-        </div>
+  useEffect(() => {
+    if (!settings.celebrations) return;
+    const dailyKey = `applyflow-daily-${dateOnly(new Date())}`;
+    if (dashboard.today >= settings.dailyGoal && !localStorage.getItem(dailyKey)) {
+      localStorage.setItem(dailyKey, "1");
+      workspace.setToast("🎉 Daily goal completed — you did it!");
+    }
+  }, [dashboard.today, settings.dailyGoal, settings.celebrations]);
 
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
+  async function saveApplication(row: ApplicationFormData) {
+    try {
+      setSaving(true);
+      if (editing) await workspace.update(editing.__applyflow_id, row);
+      else await workspace.create(row);
+      setFormOpen(false);
+      setEditing(null);
+      workspace.setToast(editing ? "Application updated." : "Application added.");
+    } catch (reason) {
+      workspace.setToast((reason as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
-            return (
-              <button
-                key={item.label}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  item.active
-                    ? "bg-gray-100 text-gray-950"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Icon size={17} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+  async function deleteApplication(id: string) {
+    if (!window.confirm("Delete this application?")) return;
+    try {
+      await workspace.remove(id);
+      workspace.setToast("Application deleted.");
+    } catch (reason) {
+      workspace.setToast((reason as Error).message);
+    }
+  }
 
-      <main className="ml-64 px-8 py-6">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-500">Dashboard</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-              Good morning, Pushpaja
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              You have 2 interviews this week and 3 applications that need
-              follow-up.
-            </p>
-          </div>
+  if (workspace.mode === "welcome") {
+    return <Welcome loading={workspace.loading} error={workspace.error} sheetId={workspace.sheetId} setSheetId={workspace.setSheetId} connect={()=>workspace.connectSheet(workspace.sheetId)} openDemo={workspace.openDemo} personalAvailable={workspace.personalAvailable} accessCode={workspace.accessCode} setAccessCode={workspace.setAccessCode} openPersonal={workspace.openPersonal} serviceEmail={workspace.serviceEmail}/>;
+  }
 
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
-              <Search size={16} />
-              Search
-              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-400">
-                ⌘K
-              </span>
-            </button>
+  const subtitle = workspace.lastSync
+    ? `${workspace.sheetName} · Synced ${new Date(workspace.lastSync).toLocaleString()}`
+    : workspace.sheetName;
 
-            <button className="flex items-center gap-2 rounded-lg bg-gray-950 px-3 py-2 text-sm text-white">
-              <Plus size={16} />
-              Add application
-            </button>
-          </div>
-        </header>
-
-        <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Today's focus</h3>
-            <span className="text-xs text-gray-400">3 tasks</span>
-          </div>
-
-          <div className="space-y-3">
-            {focusItems.map((item) => (
-              <label
-                key={item}
-                className="flex items-center gap-3 text-sm text-gray-700"
-              >
-                <input type="checkbox" className="h-4 w-4 rounded" />
-                {item}
-              </label>
-            ))}
-          </div>
-        </section>
-
-        <section className="mb-6 grid grid-cols-4 gap-4">
-          {metrics.map((metric) => (
-            <div
-              key={metric.label}
-              className="rounded-xl border border-gray-200 bg-white p-5"
-            >
-              <p className="text-sm text-gray-500">{metric.label}</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight">
-                {metric.value}
-              </p>
-              <p className="mt-1 text-xs text-gray-400">{metric.helper}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 rounded-xl border border-gray-200 bg-white p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-medium">Recent applications</h3>
-              <button className="text-sm text-gray-500 hover:text-gray-900">
-                View all
-              </button>
-            </div>
-
-            <div className="divide-y divide-gray-100">
-              {recentApplications.map((app) => (
-                <div
-                  key={app.company}
-                  className="grid grid-cols-4 items-center py-4 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">{app.company}</p>
-                    <p className="text-gray-500">{app.role}</p>
-                  </div>
-
-                  <div className="text-gray-500">{app.status}</div>
-                  <div className="text-gray-500">{app.updated}</div>
-
-                  <div className="text-right">
-                    <button className="text-gray-500 hover:text-gray-900">
-                      Open
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="mb-4 text-sm font-medium">Recent activity</h3>
-
-            <div className="space-y-5 text-sm">
-              <div>
-                <p className="text-gray-900">Applied to Cisco</p>
-                <p className="text-xs text-gray-400">Yesterday</p>
-              </div>
-
-              <div>
-                <p className="text-gray-900">Updated frontend resume</p>
-                <p className="text-xs text-gray-400">2 days ago</p>
-              </div>
-
-              <div>
-                <p className="text-gray-900">Completed Apple interview prep</p>
-                <p className="text-xs text-gray-400">3 days ago</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+  return <div className="app-shell">
+    <Sidebar currentPage={page} mode={workspace.mode} workspace={workspace.sheetName} onNavigate={setPage} onExit={workspace.disconnect}/>
+    <main className="main-content">
+      <Header title={page.charAt(0).toUpperCase()+page.slice(1)} subtitle={subtitle} syncing={workspace.syncing} onSync={workspace.sync}/>
+      <AnimatePresence mode="wait"><motion.section key={page} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:.18}}>
+        {page==="dashboard"&&<Dashboard total={workspace.rows.length} today={dashboard.today} week={dashboard.week} interviews={dashboard.interviews} offers={dashboard.offers} rejected={dashboard.rejected} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} statusData={dashboard.statusData} weeklyData={dashboard.weeklyData} onOpenApplications={(status)=>{setFilters(status?[{type:"Status",value:status}]:[]);setPage("applications");}}/>}
+        {page==="applications"&&<Applications allRows={workspace.rows} rows={filteredRows} columns={workspace.columns} search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} sortColumn={sortColumn} ascending={ascending} onSort={(column)=>{if(column===sortColumn)setAscending((value)=>!value);else{setSortColumn(column);setAscending(true);}}} onEdit={(row)=>{setEditing(row);setFormOpen(true);}} onDelete={deleteApplication} onNew={()=>{setEditing(null);setFormOpen(true);}}/>}
+        {page==="goals"&&<Goals today={dashboard.today} week={dashboard.week} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal}/>} 
+        {page==="settings"&&<Settings mode={workspace.mode} sheetId={workspace.sheetId} serviceEmail={workspace.serviceEmail} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} celebrations={settings.celebrations} setDailyGoal={(value)=>setSettings((current)=>({...current,dailyGoal:value}))} setWeeklyGoal={(value)=>setSettings((current)=>({...current,weeklyGoal:value}))} setCelebrations={(value)=>setSettings((current)=>({...current,celebrations:value}))} onSync={workspace.sync} onDisconnect={workspace.disconnect}/>} 
+      </motion.section></AnimatePresence>
+    </main>
+    <ApplicationForm open={formOpen} columns={workspace.columns} initial={editing} loading={saving} onClose={()=>{setFormOpen(false);setEditing(null);}} onSave={saveApplication}/>
+    {workspace.toast&&<div className="toast">{workspace.toast}</div>}
+  </div>;
 }
-
-export default App;

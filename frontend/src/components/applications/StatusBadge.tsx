@@ -1,0 +1,2 @@
+interface Props{status:string;}
+export default function StatusBadge({status}:Props){const key=status.toLowerCase();let tone="neutral";if(key.includes("offer"))tone="success";else if(key.includes("reject"))tone="danger";else if(key.includes("interview")||key.includes("screen"))tone="warning";else if(key.includes("assessment")||key==="oa")tone="purple";else if(key.includes("applied"))tone="info";return <span className={`status-badge status-${tone}`}>{status||"—"}</span>}

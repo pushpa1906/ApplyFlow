@@ -1,0 +1,5 @@
+import SearchToolbar from "../components/applications/SearchToolbar";
+import ApplicationsTable from "../components/applications/ApplicationsTable";
+import type { ApplicationFilter, ApplicationRow } from "../types/application";
+interface Props{allRows:ApplicationRow[];rows:ApplicationRow[];columns:string[];search:string;setSearch:(value:string)=>void;filters:ApplicationFilter[];setFilters:(filters:ApplicationFilter[])=>void;sortColumn:string;ascending:boolean;onSort:(column:string)=>void;onEdit:(row:ApplicationRow)=>void;onDelete:(id:string)=>void;onNew:()=>void;}
+export default function Applications({allRows,rows,columns,search,setSearch,filters,setFilters,sortColumn,ascending,onSort,onEdit,onDelete,onNew}:Props){return <div className="page-stack"><SearchToolbar rows={allRows} columns={columns} search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} onNew={onNew}/><ApplicationsTable rows={rows} columns={columns} sortColumn={sortColumn} ascending={ascending} onSort={onSort} onEdit={onEdit} onDelete={onDelete}/></div>}
