@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv # type: ignore
 BASE_DIR=Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR/'.env')
-SECRET_KEY=os.getenv('DJANGO_SECRET_KEY','dev-only-change-me')
+SECRET_KEY=os.getenv('DJANGO_SECRET_KEY','w&93qocd2zahkcer8cnd=7m(owsxefm1kdbgnu!^ku*c&m=r2-')
 DEBUG=os.getenv('DEBUG','True').lower()=='true'
 ALLOWED_HOSTS=[x.strip() for x in os.getenv('ALLOWED_HOSTS','localhost,127.0.0.1').split(',') if x.strip()]
 INSTALLED_APPS = [
@@ -21,6 +21,7 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
