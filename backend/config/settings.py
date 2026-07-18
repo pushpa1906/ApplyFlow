@@ -20,8 +20,8 @@ INSTALLED_APPS = [
     "core",
 ]
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -45,8 +45,15 @@ TEMPLATES = [
 ]
 WSGI_APPLICATION='config.wsgi.application'
 DATABASES={'default':{'ENGINE':'django.db.backends.sqlite3','NAME':BASE_DIR/'db.sqlite3'}}
-STATIC_URL='static/'
-DEFAULT_AUTO_FIELD='django.db.models.BigAutoField'
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
 CORS_ALLOWED_ORIGINS=[x.strip() for x in os.getenv('CORS_ALLOWED_ORIGINS','http://localhost:5173').split(',') if x.strip()]
 REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
@@ -58,3 +65,4 @@ GOOGLE_SERVICE_ACCOUNT_JSON=os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON','')
 PERSONAL_SPREADSHEET_ID=os.getenv('PERSONAL_SPREADSHEET_ID','')
 PERSONAL_ACCESS_CODE=os.getenv('PERSONAL_ACCESS_CODE','1619')
 APPLICATIONS_SHEET_NAME=os.getenv('APPLICATIONS_SHEET_NAME','Applications')
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
