@@ -5,3 +5,4 @@ python-dotenv>=1.0,<2.0
 google-api-python-client>=2.160,<3.0
 google-auth>=2.38,<3.0
 gunicorn>=23.0,<24.0
+whitenoise>=6.8,<7.0
