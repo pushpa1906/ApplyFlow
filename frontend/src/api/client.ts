@@ -1,4 +1,8 @@
-const API_BASE = "/api";
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  "http://127.0.0.1:8000/api";
+
+console.log("API:", import.meta.env.VITE_API_URL);
 
 export default async function request<T>(
   endpoint: string,
