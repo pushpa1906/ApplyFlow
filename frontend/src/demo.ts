@@ -3,7 +3,7 @@ import { dateOnly } from "./utils/dates";
 
 const companies = ["Google", "Adobe", "Cisco", "Salesforce", "Tesla", "Apple", "Microsoft", "Datadog", "Intuit", "Nvidia", "Stripe", "Atlassian"];
 const roles = ["Software Engineer", "Frontend Engineer", "Web Developer", "QA Engineer", "Full Stack Developer"];
-const statuses = ["Applied", "Recruiter Screen", "Interview", "Assessment", "Offer", "Rejected"];
+const ApplicationStatuses = ["Applied", "Recruiter Screen", "Interview", "Assessment", "Offer", "Rejected"];
 const sources = ["LinkedIn", "Company Website", "Referral", "Indeed"];
 const locations = ["California", "Texas", "Remote", "New York", "Washington"];
 
@@ -14,7 +14,7 @@ export const demoRows: ApplicationRow[] = Array.from({ length: 48 }, (_, index) 
     __applyflow_id: `demo-${index + 1}`,
     Company: companies[index % companies.length],
     Role: roles[index % roles.length],
-    Status: statuses[index % statuses.length],
+    "Application Status":  ApplicationStatuses[index % ApplicationStatuses.length],
     "Applied Date": dateOnly(date),
     Location: locations[index % locations.length],
     Source: sources[index % sources.length],
