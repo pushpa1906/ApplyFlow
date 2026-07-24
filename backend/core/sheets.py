@@ -44,14 +44,14 @@ def ensure_sheet(spreadsheet_id):
     meta=metadata(spreadsheet_id); names=[s['properties']['title'] for s in meta.get('sheets',[])]
     if settings.APPLICATIONS_SHEET_NAME not in names:
         _execute(service().spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id,body={'requests':[{'addSheet':{'properties':{'title':settings.APPLICATIONS_SHEET_NAME}}}]}))
-        _execute(service().spreadsheets().values().update(spreadsheetId=spreadsheet_id,range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:E1",valueInputOption='RAW',body={'values':[[ID_COL,'Company','Role','Status','Applied Date']]}))
+        _execute(service().spreadsheets().values().update(spreadsheetId=spreadsheet_id,range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:E1",valueInputOption='RAW',body={'values':[[ID_COL,'Company','Role','Application Status','Applied Date']]}))
 
 def read_rows(spreadsheet_id):
     ensure_sheet(spreadsheet_id)
     meta=metadata(spreadsheet_id)
     values=_execute(service().spreadsheets().values().get(spreadsheetId=spreadsheet_id,range=f"'{settings.APPLICATIONS_SHEET_NAME}'")).get('values',[])
     if not values:
-        headers=[ID_COL,'Company','Role','Status','Applied Date']
+        headers=[ID_COL,'Company','Role','Application Status','Applied Date']
         _execute(service().spreadsheets().values().update(spreadsheetId=spreadsheet_id,range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:E1",valueInputOption='RAW',body={'values':[headers]}))
         values=[headers]
     headers=[str(x).strip() for x in values[0]]

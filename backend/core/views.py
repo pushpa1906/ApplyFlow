@@ -49,10 +49,10 @@ def applications(request):
         sid=resolve_sheet(request,request.data)
         if request.method=='GET': return Response(sheets.read_rows(sid))
         row=request.data.get('row') or {}
-        for field in ('Company','Role','Status','Applied Date'):
+        for field in ('Company','Role','Application Status','Applied Date'):
             if not str(row.get(field,'')).strip(): raise sheets.SheetsError(f'{field} is required.')
         return Response(sheets.create_row(sid,row),status=status.HTTP_201_CREATED)
-    except Exception as exc: return fail(exc)
+    except Exception as exc: return fail(exc)  
 
 @api_view(['PUT','DELETE'])
 def application_detail(request,row_id):

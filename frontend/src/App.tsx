@@ -17,6 +17,7 @@ import type { ApplicationFilter, ApplicationFormData, ApplicationRow } from "./t
 import type { AppSettings } from "./types/settings";
 import type { AppPage } from "./types/workspace";
 import { dateOnly } from "./utils/dates";
+import { APPLICATION_TABS } from "./constants/applicationTabs";
 
 export default function App() {
   const workspace = useWorkspace();
@@ -38,7 +39,12 @@ export default function App() {
   });
 
   const filteredRows = useFilters(workspace.rows, search, filters, sortColumn, ascending);
-
+  const [tab, setTab] = useState("all");
+  const visibleRows = filteredRows.filter(
+  APPLICATION_TABS.find(
+    (t) => t.id === tab,
+  )!.match,
+);
   useEffect(() => {
     localStorage.setItem("applyflow_settings", JSON.stringify(settings));
   }, [settings]);
@@ -78,7 +84,7 @@ export default function App() {
   }
 
   if (workspace.mode === "welcome") {
-    return <Welcome loading={workspace.loading} error={workspace.error} sheetId={workspace.sheetId} setSheetId={workspace.setSheetId} connect={()=>workspace.connectSheet(workspace.sheetId)} openDemo={workspace.openDemo} personalAvailable={workspace.personalAvailable} accessCode={workspace.accessCode} setAccessCode={workspace.setAccessCode} openPersonal={workspace.openPersonal} serviceEmail={workspace.serviceEmail}/>;
+    return <Welcome loading={workspace.loading} error={workspace.error} sheetId={workspace.sheetId} setSheetId={workspace.setSheetId} connect={() => workspace.connectSheet(workspace.sheetId)} openDemo={workspace.openDemo} personalAvailable={workspace.personalAvailable} accessCode={workspace.accessCode} setAccessCode={workspace.setAccessCode} openPersonal={workspace.openPersonal} serviceEmail={workspace.serviceEmail} />;
   }
 
   const subtitle = workspace.lastSync
@@ -86,17 +92,63 @@ export default function App() {
     : workspace.sheetName;
 
   return <div className="app-shell">
-    <Sidebar currentPage={page} mode={workspace.mode} workspace={workspace.sheetName} onNavigate={setPage} onExit={workspace.disconnect}/>
+    <Sidebar currentPage={page} mode={workspace.mode} workspace={workspace.sheetName} onNavigate={setPage} onExit={workspace.disconnect} />
     <main className="main-content">
-      <Header title={page.charAt(0).toUpperCase()+page.slice(1)} subtitle={subtitle} syncing={workspace.syncing} onSync={workspace.sync}/>
-      <AnimatePresence mode="wait"><motion.section key={page} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}} transition={{duration:.18}}>
-        {page==="dashboard"&&<Dashboard total={workspace.rows.length} today={dashboard.today} week={dashboard.week} interviews={dashboard.interviews} offers={dashboard.offers} rejected={dashboard.rejected} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} statusData={dashboard.statusData} weeklyData={dashboard.weeklyData} onOpenApplications={(status)=>{setFilters(status?[{type:"Status",value:status}]:[]);setPage("applications");}}/>}
-        {page==="applications"&&<Applications allRows={workspace.rows} rows={filteredRows} columns={workspace.columns} search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} sortColumn={sortColumn} ascending={ascending} onSort={(column)=>{if(column===sortColumn)setAscending((value)=>!value);else{setSortColumn(column);setAscending(true);}}} onEdit={(row)=>{setEditing(row);setFormOpen(true);}} onDelete={deleteApplication} onNew={()=>{setEditing(null);setFormOpen(true);}}/>}
-        {page==="goals"&&<Goals today={dashboard.today} week={dashboard.week} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal}/>} 
-        {page==="settings"&&<Settings mode={workspace.mode} sheetId={workspace.sheetId} serviceEmail={workspace.serviceEmail} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} celebrations={settings.celebrations} setDailyGoal={(value)=>setSettings((current)=>({...current,dailyGoal:value}))} setWeeklyGoal={(value)=>setSettings((current)=>({...current,weeklyGoal:value}))} setCelebrations={(value)=>setSettings((current)=>({...current,celebrations:value}))} onSync={workspace.sync} onDisconnect={workspace.disconnect}/>} 
+      <Header title={page.charAt(0).toUpperCase() + page.slice(1)} subtitle={subtitle} syncing={workspace.syncing} onSync={workspace.sync} />
+      <AnimatePresence mode="wait"><motion.section key={page} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: .18 }}>
+        {page === "dashboard" && <Dashboard total={workspace.rows.length} today={dashboard.today} week={dashboard.week} interviews={dashboard.interviews} offers={dashboard.offers} rejected={dashboard.rejected} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} statusData={dashboard.statusData} weeklyData={dashboard.weeklyData} onOpenApplications={(status) => { setFilters(status ? [{ type: "Application Status", value: status }] : []); setPage("applications"); }} />}
+        {page === "applications" && (
+          <Applications
+            allRows={workspace.rows}
+            rows={visibleRows}
+            columns={workspace.columns}
+            search={search}
+            setSearch={setSearch}
+            filters={filters}
+            setFilters={setFilters}
+            sortColumn={sortColumn}
+            ascending={ascending}
+            onSort={(column) => {
+              if (column === sortColumn) {
+                setAscending((value) => !value);
+              } else {
+                setSortColumn(column);
+                setAscending(true);
+              }
+            }}
+            onEdit={(row) => {
+              setEditing(row);
+              setFormOpen(true);
+            }}
+            onDelete={deleteApplication}
+            onCellUpdate={async (id, column, value) => {
+              console.log("App:", id, column, value);
+
+              await workspace.update(
+                id,
+                {
+                  [column]: value,
+                } as ApplicationFormData,
+              );
+            }}
+            onNew={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          />
+        )}
+        {page === "goals" && (
+          <Goals
+            today={dashboard.today}
+            week={dashboard.week}
+            dailyGoal={settings.dailyGoal}
+            weeklyGoal={settings.weeklyGoal}
+          />
+        )}
+        {page === "settings" && <Settings mode={workspace.mode} sheetId={workspace.sheetId} serviceEmail={workspace.serviceEmail} dailyGoal={settings.dailyGoal} weeklyGoal={settings.weeklyGoal} celebrations={settings.celebrations} setDailyGoal={(value) => setSettings((current) => ({ ...current, dailyGoal: value }))} setWeeklyGoal={(value) => setSettings((current) => ({ ...current, weeklyGoal: value }))} setCelebrations={(value) => setSettings((current) => ({ ...current, celebrations: value }))} onSync={workspace.sync} onDisconnect={workspace.disconnect} />}
       </motion.section></AnimatePresence>
     </main>
-    <ApplicationForm open={formOpen} columns={workspace.columns} initial={editing} loading={saving} onClose={()=>{setFormOpen(false);setEditing(null);}} onSave={saveApplication}/>
-    {workspace.toast&&<div className="toast">{workspace.toast}</div>}
+    <ApplicationForm open={formOpen} columns={workspace.columns} initial={editing} loading={saving} onClose={() => { setFormOpen(false); setEditing(null); }} onSave={saveApplication} />
+    {workspace.toast && <div className="toast">{workspace.toast}</div>}
   </div>;
 }

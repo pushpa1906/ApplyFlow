@@ -126,17 +126,38 @@ export default function useWorkspace() {
   }
 
   async function create(row: ApplicationFormData) {
-    if (mode === "demo") {
-      const saved = { ...row, __applyflow_id: crypto.randomUUID() } as ApplicationRow;
-      setRows((current) => [saved, ...current]);
-      return saved;
-    }
-    const saved = await api.create(row, sheetId, mode === "personal", accessCode);
+  if (mode === "demo") {
+    const saved = {
+      ...row,
+      __applyflow_id: crypto.randomUUID(),
+    } as ApplicationRow;
+
     setRows((current) => [saved, ...current]);
     return saved;
   }
 
+  const saved = await api.create(
+    row,
+    sheetId,
+    mode === "personal",
+    accessCode,
+  );
+
+  // Reload the workspace so dashboard, charts,
+  // and table all use the latest Google Sheet data.
+  const data = await api.list(
+    sheetId,
+    mode === "personal",
+    accessCode,
+  );
+
+  applyWorkspace(data);
+
+  return saved;
+}
+
   async function update(id: string, row: ApplicationFormData) {
+    console.log("Workspace Update:", id, row);
     if (mode === "demo") {
       const updated = { ...rows.find((item) => item.__applyflow_id === id), ...row, __applyflow_id: id } as ApplicationRow;
       setRows((current) => current.map((item) => item.__applyflow_id === id ? updated : item));
@@ -165,6 +186,7 @@ export default function useWorkspace() {
     setLastSync("");
     setError("");
   }
+ 
 
   return {
     mode, rows, columns, sheetId, accessCode, sheetName, lastSync,
