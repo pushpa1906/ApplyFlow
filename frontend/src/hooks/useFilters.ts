@@ -45,7 +45,13 @@ export default function useFilters(
 
         const matchesFilters =
           filters.every((filter) => {
-            /* Smart Follow Up filters. These values are calculated.They do not need to exist inside the Google Sheet.*/
+            /*
+             * Smart Follow Up filters
+             *
+             * These values are calculated.
+             * They do not need to exist
+             * inside the Google Sheet.
+             */
             if (
               filter.type ===
               "Follow Up Date"
@@ -94,14 +100,20 @@ export default function useFilters(
                 );
               }
 
-              /* If it isn't one of the smart values, compare the actual Follow Up Date.*/
+              /*
+               * If it isn't one of the
+               * smart values, compare the
+               * actual Follow Up Date.
+               */
               return (
                 followUpDate ===
                 filter.value
               );
             }
 
-            /* Normal column filters*/
+            /*
+             * Normal column filters
+             */
             return (
               String(
                 row[

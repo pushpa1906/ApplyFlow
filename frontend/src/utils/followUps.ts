@@ -3,7 +3,10 @@ import {
   parseDate,
 } from "./dates";
 
-/* Statuses that should have active follow-up reminders.*/
+/*
+ * Statuses that should have
+ * active follow-up reminders.
+ */
 export const FOLLOW_UP_ENABLED_STATUSES = [
   "Applied",
   "OA Received",
@@ -15,11 +18,16 @@ export const FOLLOW_UP_ENABLED_STATUSES = [
   "Offer",
 ];
 
-/* Number of days after the application's last update before a follow-up is due.*/
+/*
+ * Number of days after the application's
+ * last update before a follow-up is due.
+ */
 export const FOLLOW_UP_DAYS = 7;
 
 
-/* Check whether status supports follow-ups */
+/* =========================================================
+   Check whether status supports follow-ups
+========================================================= */
 
 export function followUpEnabled(
   status: string,
@@ -30,8 +38,12 @@ export function followUpEnabled(
 }
 
 
-/* Calculate Follow Up Date
-   Follow Up Date = Application Last Updated + 7 days */
+/* =========================================================
+   Calculate Follow Up Date
+
+   Follow Up Date =
+   Application Last Updated + 7 days
+========================================================= */
 
 export function getAutomaticFollowUpDate(
   lastUpdatedDate: string,
@@ -64,7 +76,9 @@ export function getAutomaticFollowUpDate(
 }
 
 
-/* Follow-up is TODAY */
+/* =========================================================
+   Follow-up is TODAY
+========================================================= */
 
 export function isFollowUpToday(
   date: string,
@@ -104,7 +118,9 @@ export function isFollowUpToday(
 }
 
 
-/*Follow-up is OVERDUE*/
+/* =========================================================
+   Follow-up is OVERDUE
+========================================================= */
 
 export function isFollowUpOverdue(
   date: string,
@@ -141,8 +157,12 @@ export function isFollowUpOverdue(
 }
 
 
-/* Follow-up is UPCOMING
-  Upcoming = within the next 7 days, excluding today. */
+/* =========================================================
+   Follow-up is UPCOMING
+
+   Upcoming = within the next 7 days,
+   excluding today.
+========================================================= */
 
 export function isFollowUpUpcoming(
   date: string,

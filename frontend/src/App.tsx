@@ -137,14 +137,15 @@ export default function App() {
       };
 
       if (!editing) {
-        /*=========================================================
-         NEW APPLICATION
-         Applied Date
-              ↓
-         Application Last Updated = Applied Date
-              ↓
-         Follow Up Date = Last Updated + 7 days
-         =============================================================*/
+        /*
+         * NEW APPLICATION
+         *
+         * Applied Date
+         *      ↓
+         * Application Last Updated = Applied Date
+         *      ↓
+         * Follow Up Date = Last Updated + 7 days
+         */
 
         const appliedDate = row["Applied Date"] ?? "";
 
@@ -154,12 +155,14 @@ export default function App() {
 
         await workspace.create(dataToSave);
       } else {
-        /*===============================================
+        /*
          * EDITING EXISTING APPLICATION
+         *
          * Any saved edit counts as an update.
+         *
          * Application Last Updated = Today
          * Follow Up Date = Today + 7 days
-         =================================================*/
+         */
 
         const lastUpdated = dateOnly(new Date());
 
