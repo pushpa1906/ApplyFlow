@@ -1,6 +1,11 @@
 import { useMemo } from "react";
 import type { ApplicationRow } from "../types/application";
 import { dateOnly, isThisWeek } from "../utils/dates";
+import {
+  isFollowUpToday,
+  isFollowUpUpcoming,
+  isFollowUpOverdue,
+} from "../utils/followUps";
 
 export interface ChartDatum {
   name: string;
@@ -11,13 +16,45 @@ export default function useDashboard(rows: ApplicationRow[]) {
   return useMemo(() => {
     const todayKey = dateOnly(new Date());
     const today = rows.filter((row) => row["Applied Date"] === todayKey).length;
-    const week = rows.filter((row) => isThisWeek(row["Applied Date"] ?? "")).length;
-    const interviews = rows.filter((row) => /interview|screen|oa|assessment/i.test(row["Application Status"] ?? "")).length;
-    const offers = rows.filter((row) => /offer/i.test(row["Application Status"] ?? "")).length;
-    const rejected = rows.filter((row) => /reject/i.test(row["Application Status"] ?? "")).length;
+    const week = rows.filter((row) =>
+      isThisWeek(row["Applied Date"] ?? ""),
+    ).length;
+    const interviews = rows.filter((row) =>
+      /interview|screen|oa|assessment/i.test(row["Application Status"] ?? ""),
+    ).length;
+    const offers = rows.filter((row) =>
+      /offer/i.test(row["Application Status"] ?? ""),
+    ).length;
+    const rejected = rows.filter((row) =>
+      /reject/i.test(row["Application Status"] ?? ""),
+    ).length;
+    const followUpsToday = rows.filter((row) =>
+      isFollowUpToday(
+        row["Follow Up Date"] ?? "",
+        row["Application Status"] ?? "",
+      ),
+    ).length;
+
+    const followUpsUpcoming = rows.filter((row) =>
+      isFollowUpUpcoming(
+        row["Follow Up Date"] ?? "",
+        row["Application Status"] ?? "",
+      ),
+    ).length;
+
+    const followUpsOverdue = rows.filter((row) =>
+      isFollowUpOverdue(
+        row["Follow Up Date"] ?? "",
+        row["Application Status"] ?? "",
+      ),
+    ).length;
 
     const statusValues = Array.from(
-      new Set(rows.map((row) => row["Application Status"]).filter((value) => Boolean(value?.trim()))),
+      new Set(
+        rows
+          .map((row) => row["Application Status"])
+          .filter((value) => Boolean(value?.trim())),
+      ),
     );
 
     const statusData: ChartDatum[] = statusValues.map((name) => ({
@@ -35,6 +72,17 @@ export default function useDashboard(rows: ApplicationRow[]) {
       };
     });
 
-    return { today, week, interviews, offers, rejected, statusData, weeklyData };
+    return {
+      today,
+      week,
+      interviews,
+      offers,
+      rejected,
+      statusData,
+      weeklyData,
+      followUpsToday,
+      followUpsUpcoming,
+      followUpsOverdue,
+    };
   }, [rows]);
-}   
+}
