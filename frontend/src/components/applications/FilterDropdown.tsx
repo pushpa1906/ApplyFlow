@@ -1,8 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { isHiddenColumn } from "../../constants/hiddenColumns";
 
@@ -18,17 +14,12 @@ interface Props {
   rows: ApplicationRow[];
   columns: string[];
 
-  onApply: (
-    filter: ApplicationFilter,
-  ) => void;
+  onApply: (filter: ApplicationFilter) => void;
 
   onCancel: () => void;
 }
 
-const FILTER_LABELS: Record<
-  string,
-  string
-> = {
+const FILTER_LABELS: Record<string, string> = {
   Status: "Application Status",
 };
 
@@ -40,27 +31,20 @@ export default function FilterDropdown({
   onCancel,
 }: Props) {
   const filterable = useMemo(
-    () =>
-      columns.filter(
-        (column) =>
-          !isHiddenColumn(column),
-      ),
+    () => columns.filter((column) => !isHiddenColumn(column)),
     [columns],
   );
 
-  const [type, setType] =
-    useState("");
+  const [type, setType] = useState("");
 
-  const [value, setValue] =
-    useState("");
+  const [value, setValue] = useState("");
 
   useEffect(() => {
     if (open) {
       setType((current) =>
-        current &&
-        filterable.includes(current)
+        current && filterable.includes(current)
           ? current
-          : filterable[0] ?? "",
+          : (filterable[0] ?? ""),
       );
     }
   }, [open, filterable]);
@@ -74,15 +58,9 @@ export default function FilterDropdown({
       return [];
     }
 
-    return Array.from(
+    const existingValues = Array.from(
       new Set(
-        rows
-          .map((row) =>
-            String(
-              row[type] ?? "",
-            ).trim(),
-          )
-          .filter(Boolean),
+        rows.map((row) => String(row[type] ?? "").trim()).filter(Boolean),
       ),
     ).sort((a, b) =>
       a.localeCompare(b, undefined, {
@@ -90,6 +68,13 @@ export default function FilterDropdown({
         sensitivity: "base",
       }),
     );
+
+    /* Follow Up Date keeps all of its existing date values, but also gets three smart filter options.*/
+    if (type === "Follow Up Date") {
+      return ["Today", "Upcoming", "Overdue", ...existingValues];
+    }
+
+    return existingValues;
   }, [rows, type]);
 
   if (!open) {
@@ -102,50 +87,25 @@ export default function FilterDropdown({
 
       <label>
         Type
-
-        <select
-          value={type}
-          onChange={(event) =>
-            setType(
-              event.target.value,
-            )
-          }
-        >
-          {filterable.map(
-            (column) => (
-              <option
-                key={column}
-                value={column}
-              >
-                {FILTER_LABELS[
-                  column
-                ] ?? column}
-              </option>
-            ),
-          )}
+        <select value={type} onChange={(event) => setType(event.target.value)}>
+          {filterable.map((column) => (
+            <option key={column} value={column}>
+              {FILTER_LABELS[column] ?? column}
+            </option>
+          ))}
         </select>
       </label>
 
       <label>
         Value
-
         <select
           value={value}
-          onChange={(event) =>
-            setValue(
-              event.target.value,
-            )
-          }
+          onChange={(event) => setValue(event.target.value)}
         >
-          <option value="">
-            Select value...
-          </option>
+          <option value="">Select value...</option>
 
           {values.map((item) => (
-            <option
-              key={item}
-              value={item}
-            >
+            <option key={item} value={item}>
               {item}
             </option>
           ))}
@@ -153,17 +113,12 @@ export default function FilterDropdown({
       </label>
 
       <div className="filter-actions">
-        <Button
-          variant="secondary"
-          onClick={onCancel}
-        >
+        <Button variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
 
         <Button
-          disabled={
-            !type || !value
-          }
+          disabled={!type || !value}
           onClick={() =>
             onApply({
               type,

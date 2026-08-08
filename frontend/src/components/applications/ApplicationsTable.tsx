@@ -1,8 +1,5 @@
-
-import { useState } from "react"; import {
-  Pencil,
-  Trash2,
-} from "lucide-react";
+import { useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { isHiddenColumn } from "../../constants/hiddenColumns";
 
@@ -10,6 +7,7 @@ import type { ApplicationRow } from "../../types/application";
 
 import Dropdown from "../common/Dropdown";
 import { getDropdownOptions } from "../../utils/getDropdownOptions";
+import { isFollowUpToday, isFollowUpOverdue } from "../../utils/followUps";
 
 interface Props {
   rows: ApplicationRow[];
@@ -36,13 +34,8 @@ export default function ApplicationsTable({
   onDelete,
   onCellUpdate,
 }: Props) {
-  const visibleColumns =
-    columns.filter(
-      (column) =>
-        !isHiddenColumn(column),
-    );
+  const visibleColumns = columns.filter((column) => !isHiddenColumn(column));
   const [updatingCell, setUpdatingCell] = useState<string | null>(null);
-
 
   return (
     <div className="table-card">
@@ -50,49 +43,29 @@ export default function ApplicationsTable({
         <table>
           <thead>
             <tr>
-              {visibleColumns.map(
-                (column) => (
-                  <th key={column}>
-                    <button
-                      onClick={() =>
-                        onSort(column)
-                      }
-                    >
-                      {column}
+              {visibleColumns.map((column) => (
+                <th key={column}>
+                  <button onClick={() => onSort(column)}>
+                    {column}
 
-                      {sortColumn ===
-                        column && (
-                          <span>
-                            {ascending
-                              ? " ↑"
-                              : " ↓"}
-                          </span>
-                        )}
-                    </button>
-                  </th>
-                ),
-              )}
+                    {sortColumn === column && (
+                      <span>{ascending ? " ↑" : " ↓"}</span>
+                    )}
+                  </button>
+                </th>
+              ))}
 
-              <th className="actions-column">
-                Actions
-              </th>
+              <th className="actions-column">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {rows.map((row) => (
-              <tr
-                key={
-                  row.__applyflow_id
-                }
-              >
+              <tr key={row.__applyflow_id}>
                 {visibleColumns.map((column) => {
-                  const dropdownOptions =
-                    getDropdownOptions(column);
+                  const dropdownOptions = getDropdownOptions(column);
 
-                  const value = String(
-                    row[column] ?? "",
-                  );
+                  const value = String(row[column] ?? "");
 
                   return (
                     <td key={column}>
@@ -101,8 +74,7 @@ export default function ApplicationsTable({
                           value={value}
                           options={dropdownOptions}
                           disabled={
-                            updatingCell ===
-                            `${row.__applyflow_id}-${column}`
+                            updatingCell === `${row.__applyflow_id}-${column}`
                           }
                           onChange={async (newValue) => {
                             const cellId = `${row.__applyflow_id}-${column}`;
@@ -120,24 +92,46 @@ export default function ApplicationsTable({
                             }
                           }}
                         />
-                      ) : (
-                        column === "Job Link" ||
-                          column === "Company Website/Career Page" ? (
-                          value ? (
-                            <a
-                              href={value}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="table-link"
-                            >
-                              Open ↗
-                            </a>
-                          ) : (
-                            "-"
-                          )
+                      ) : column === "Job Link" ||
+                        column === "Company Website/Career Page" ? (
+                        value ? (
+                          <a
+                            href={value}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="table-link"
+                          >
+                            Open ↗
+                          </a>
                         ) : (
-                          <span>{value}</span>
+                          "-"
                         )
+                      ) : (
+                        <>
+                          <span>{value}</span>
+
+                          {column === "Follow Up Date" && (
+                            <>
+                              {isFollowUpToday(
+                                value,
+                                row["Application Status"],
+                              ) && (
+                                <div className="follow-up-badge today">
+                                  🔔 Today
+                                </div>
+                              )}
+
+                              {isFollowUpOverdue(
+                                value,
+                                row["Application Status"],
+                              ) && (
+                                <div className="follow-up-badge overdue">
+                                  ⚠ Overdue
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
                       )}
                     </td>
                   );
@@ -145,29 +139,16 @@ export default function ApplicationsTable({
 
                 <td className="actions-column">
                   <div className="row-actions">
-                    <button
-                      onClick={() =>
-                        onEdit(row)
-                      }
-                      aria-label="Edit"
-                    >
-                      <Pencil
-                        size={16}
-                      />
+                    <button onClick={() => onEdit(row)} aria-label="Edit">
+                      <Pencil size={16} />
                     </button>
 
                     <button
                       className="delete-action"
-                      onClick={() =>
-                        onDelete(
-                          row.__applyflow_id,
-                        )
-                      }
+                      onClick={() => onDelete(row.__applyflow_id)}
                       aria-label="Delete"
                     >
-                      <Trash2
-                        size={16}
-                      />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </td>
@@ -178,15 +159,9 @@ export default function ApplicationsTable({
 
         {rows.length === 0 && (
           <div className="table-empty">
-            <h3>
-              No applications found
-            </h3>
+            <h3>No applications found</h3>
 
-            <p>
-              Try changing your
-              search or removing a
-              filter.
-            </p>
+            <p>Try changing your search or removing a filter.</p>
           </div>
         )}
       </div>
