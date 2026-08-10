@@ -137,9 +137,12 @@ export default function Dropdown({
                 style={getColorStyle(value)}
                 disabled={disabled}
                 onKeyDown={handleKeyDown}
-                onClick={() =>
-                    setOpen(!open)
-                }
+                onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    setOpen((current) => !current);
+                }}
             >
                 <span>
                     {value || "Select..."}
@@ -167,11 +170,11 @@ export default function Dropdown({
                                 } ${option === value ? "active" : ""
                                 }`}
                             style={getColorStyle(option)}
-                            onClick={() => {
-                                console.log("Dropdown:", option);
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
 
                                 onChange(option);
-
                                 setOpen(false);
                             }}
                         >
