@@ -129,10 +129,16 @@ export default function useWorkspace() {
   if (mode === "demo") {
     const saved = {
       ...row,
-      __applyflow_id: crypto.randomUUID(),
+      __applyflow_id: `demo-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`,
     } as ApplicationRow;
 
-    setRows((current) => [saved, ...current]);
+    setRows((current) => [
+      saved,
+      ...current,
+    ]);
+
     return saved;
   }
 
@@ -143,8 +149,6 @@ export default function useWorkspace() {
     accessCode,
   );
 
-  // Reload the workspace so dashboard, charts,
-  // and table all use the latest Google Sheet data.
   const data = await api.list(
     sheetId,
     mode === "personal",
