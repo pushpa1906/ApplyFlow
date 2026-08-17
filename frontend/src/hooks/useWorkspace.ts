@@ -5,6 +5,49 @@ import type { ApplicationFormData, ApplicationRow } from "../types/application";
 import type { WorkspaceData, WorkspaceMode } from "../types/workspace";
 import { extractSpreadsheetId } from "../utils/sheets";
 
+const FOLLOW_UP_COLUMNS = [
+  "Application Last Updated",
+  "Follow Up Date",
+];
+
+function visibleWorkspaceColumns(columns: string[]) {
+  const cleaned = columns.filter(
+    (column) => column !== "__applyflow_id",
+  );
+
+  for (const column of FOLLOW_UP_COLUMNS) {
+    if (!cleaned.includes(column)) {
+      cleaned.push(column);
+    }
+  }
+
+  return cleaned;
+}
+
+function mergeRowColumns(
+  current: string[],
+  row: ApplicationRow,
+) {
+  const next = [...current];
+
+  for (const column of Object.keys(row)) {
+    if (
+      column !== "__applyflow_id" &&
+      !next.includes(column)
+    ) {
+      next.push(column);
+    }
+  }
+
+  for (const column of FOLLOW_UP_COLUMNS) {
+    if (!next.includes(column)) {
+      next.push(column);
+    }
+  }
+
+  return next;
+}
+
 export default function useWorkspace() {
   const [mode, setMode] = useState<WorkspaceMode>("welcome");
   const [rows, setRows] = useState<ApplicationRow[]>([]);
@@ -22,7 +65,7 @@ export default function useWorkspace() {
 
   function applyWorkspace(data: WorkspaceData) {
     setRows(data.rows);
-    setColumns(data.columns.filter((column) => column !== "__applyflow_id"));
+    setColumns(visibleWorkspaceColumns(data.columns));
     setSheetName(data.spreadsheet_name);
     setLastSync(data.last_sync);
   }
@@ -84,7 +127,11 @@ export default function useWorkspace() {
   function openDemo() {
     const data = structuredClone(demoRows);
     setRows(data);
-    setColumns(Object.keys(data[0]).filter((column) => column !== "__applyflow_id"));
+    setColumns(
+      visibleWorkspaceColumns(
+        Object.keys(data[0]),
+      ),
+    );
     setSheetName("ApplyFlow Demo Workspace");
     setLastSync(new Date().toISOString());
     setMode("demo");
@@ -126,55 +173,98 @@ export default function useWorkspace() {
   }
 
   async function create(row: ApplicationFormData) {
-  if (mode === "demo") {
-    const saved = {
-      ...row,
-      __applyflow_id: `demo-${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 9)}`,
-    } as ApplicationRow;
+    if (mode === "demo") {
+      const saved = {
+        ...row,
+        __applyflow_id: `demo-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 9)}`,
+      } as ApplicationRow;
 
-    setRows((current) => [
-      saved,
-      ...current,
-    ]);
+      setRows((current) => [
+        saved,
+        ...current,
+      ]);
+      setColumns((current) =>
+        mergeRowColumns(current, saved),
+      );
+
+      return saved;
+    }
+
+    const saved = await api.create(
+      row,
+      sheetId,
+      mode === "personal",
+      accessCode,
+    );
+
+    const data = await api.list(
+      sheetId,
+      mode === "personal",
+      accessCode,
+    );
+
+    applyWorkspace(data);
 
     return saved;
   }
 
-  const saved = await api.create(
-    row,
-    sheetId,
-    mode === "personal",
-    accessCode,
-  );
-
-  const data = await api.list(
-    sheetId,
-    mode === "personal",
-    accessCode,
-  );
-
-  applyWorkspace(data);
-
-  return saved;
-}
-
   async function update(id: string, row: ApplicationFormData) {
-    console.log("Workspace Update:", id, row);
     if (mode === "demo") {
-      const updated = { ...rows.find((item) => item.__applyflow_id === id), ...row, __applyflow_id: id } as ApplicationRow;
-      setRows((current) => current.map((item) => item.__applyflow_id === id ? updated : item));
+      const updated = {
+        ...rows.find((item) => item.__applyflow_id === id),
+        ...row,
+        __applyflow_id: id,
+      } as ApplicationRow;
+
+      setRows((current) =>
+        current.map((item) =>
+          item.__applyflow_id === id ? updated : item,
+        ),
+      );
+      setColumns((current) =>
+        mergeRowColumns(current, updated),
+      );
+
       return updated;
     }
-    const updated = await api.update(id, row, sheetId, mode === "personal", accessCode);
-    setRows((current) => current.map((item) => item.__applyflow_id === id ? updated : item));
+
+    const updated = await api.update(
+      id,
+      row,
+      sheetId,
+      mode === "personal",
+      accessCode,
+    );
+
+    setRows((current) =>
+      current.map((item) =>
+        item.__applyflow_id === id ? updated : item,
+      ),
+    );
+    setColumns((current) =>
+      mergeRowColumns(current, updated),
+    );
+
     return updated;
   }
 
   async function remove(id: string) {
-    if (mode !== "demo") await api.remove(id, sheetId, mode === "personal", accessCode);
-    setRows((current) => current.filter((item) => item.__applyflow_id !== id));
+    if (mode !== "demo") {
+      await api.remove(
+        id,
+        sheetId,
+        mode === "personal",
+        accessCode,
+      );
+    }
+
+    setRows((current) =>
+      current.filter(
+        (item) => item.__applyflow_id !== id,
+      ),
+    );
   }
 
   function disconnect() {
@@ -190,7 +280,6 @@ export default function useWorkspace() {
     setLastSync("");
     setError("");
   }
- 
 
   return {
     mode, rows, columns, sheetId, accessCode, sheetName, lastSync,
