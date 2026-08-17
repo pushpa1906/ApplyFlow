@@ -12,6 +12,13 @@ from googleapiclient.errors import HttpError
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 ID_COL = "__applyflow_id"
+DEFAULT_HEADERS = [
+    ID_COL,
+    "Company",
+    "Role",
+    "Application Status",
+    "Applied Date",
+]
 
 
 class SheetsError(Exception):
@@ -22,31 +29,18 @@ def credentials() -> Credentials:
     try:
         if settings.GOOGLE_SERVICE_ACCOUNT_JSON:
             info = json.loads(settings.GOOGLE_SERVICE_ACCOUNT_JSON)
-
-            return Credentials.from_service_account_info(
-                info,
-                scopes=SCOPES,
-            )
+            return Credentials.from_service_account_info(info, scopes=SCOPES)
 
         if settings.GOOGLE_SERVICE_ACCOUNT_FILE:
             path = Path(settings.GOOGLE_SERVICE_ACCOUNT_FILE)
-
             if not path.is_absolute():
                 path = Path(settings.BASE_DIR) / path
-
-            return Credentials.from_service_account_file(
-                path,
-                scopes=SCOPES,
-            )
+            return Credentials.from_service_account_file(path, scopes=SCOPES)
 
     except Exception as exc:
-        raise SheetsError(
-            f"Invalid Google credentials: {exc}"
-        ) from exc
+        raise SheetsError(f"Invalid Google credentials: {exc}") from exc
 
-    raise SheetsError(
-        "Google service account credentials are not configured."
-    )
+    raise SheetsError("Google service account credentials are not configured.")
 
 
 def create_service() -> Resource:
@@ -61,11 +55,9 @@ def create_service() -> Resource:
 def close_service(api: Resource | None) -> None:
     if api is None:
         return
-
     try:
         api.close()
     except Exception:
-        # Closing should never hide the original Sheets operation result.
         pass
 
 
@@ -79,26 +71,17 @@ def service_email() -> str:
 def _execute(call: Any) -> dict[str, Any]:
     try:
         return call.execute()
-
     except HttpError as exc:
         message = "Google Sheets request failed."
-
         try:
             content = json.loads(exc.content.decode())
-            message = content.get("error", {}).get(
-                "message",
-                message,
-            )
+            message = content.get("error", {}).get("message", message)
         except Exception:
             pass
-
         raise SheetsError(message) from exc
 
 
-def metadata(
-    api: Resource,
-    spreadsheet_id: str,
-) -> dict[str, Any]:
+def metadata(api: Resource, spreadsheet_id: str) -> dict[str, Any]:
     return _execute(
         api.spreadsheets().get(
             spreadsheetId=spreadsheet_id,
@@ -107,19 +90,21 @@ def metadata(
     )
 
 
+def _sheet_properties(meta: dict[str, Any]) -> dict[str, Any] | None:
+    for sheet in meta.get("sheets", []):
+        props = sheet.get("properties", {})
+        if props.get("title") == settings.APPLICATIONS_SHEET_NAME:
+            return props
+    return None
+
+
 def ensure_sheet(
     api: Resource,
     spreadsheet_id: str,
     meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     meta = meta or metadata(api, spreadsheet_id)
-
-    names = [
-        sheet["properties"]["title"]
-        for sheet in meta.get("sheets", [])
-    ]
-
-    if settings.APPLICATIONS_SHEET_NAME in names:
+    if _sheet_properties(meta):
         return meta
 
     _execute(
@@ -139,68 +124,105 @@ def ensure_sheet(
         )
     )
 
-    headers = [
-        ID_COL,
-        "Company",
-        "Role",
-        "Application Status",
-        "Applied Date",
-    ]
+    _execute(
+        api.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:E1",
+            valueInputOption="RAW",
+            body={"values": [DEFAULT_HEADERS]},
+        )
+    )
+
+    return metadata(api, spreadsheet_id)
+
+
+def _column_letter(index: int) -> str:
+    """Convert a zero-based column index to an A1 column label."""
+    result = ""
+    value = index + 1
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _add_id_column_safely(
+    api: Resource,
+    spreadsheet_id: str,
+    meta: dict[str, Any],
+    existing_row_count: int,
+) -> None:
+    """Insert the internal ID column without clearing or rewriting user data."""
+    props = _sheet_properties(meta)
+    if not props:
+        raise SheetsError("Applications sheet was not found.")
+
+    _execute(
+        api.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={
+                "requests": [
+                    {
+                        "insertDimension": {
+                            "range": {
+                                "sheetId": props["sheetId"],
+                                "dimension": "COLUMNS",
+                                "startIndex": 0,
+                                "endIndex": 1,
+                            },
+                            "inheritFromBefore": False,
+                        }
+                    }
+                ]
+            },
+        )
+    )
+
+    values = [[ID_COL]]
+    values.extend([[str(uuid.uuid4())] for _ in range(max(0, existing_row_count - 1))])
+    end_row = max(1, existing_row_count)
 
     _execute(
         api.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
-            range=(
-                f"'{settings.APPLICATIONS_SHEET_NAME}'!"
-                f"A1:E1"
-            ),
+            range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:A{end_row}",
             valueInputOption="RAW",
-            body={"values": [headers]},
+            body={"values": values},
         )
     )
 
-    return meta
 
-
-def _write_all(
+def _fill_missing_ids(
     api: Resource,
     spreadsheet_id: str,
     headers: list[str],
-    rows: list[dict[str, str]],
+    values: list[list[Any]],
 ) -> None:
-    matrix = [headers]
+    id_index = headers.index(ID_COL)
+    id_column = _column_letter(id_index)
+    updates = []
 
-    matrix.extend(
-        [
-            [row.get(header, "") for header in headers]
-            for row in rows
-        ]
-    )
+    for offset, row in enumerate(values[1:], start=2):
+        current = str(row[id_index]).strip() if id_index < len(row) else ""
+        if not current:
+            updates.append(
+                {
+                    "range": f"'{settings.APPLICATIONS_SHEET_NAME}'!{id_column}{offset}",
+                    "values": [[str(uuid.uuid4())]],
+                }
+            )
 
-    _execute(
-        api.spreadsheets().values().clear(
-            spreadsheetId=spreadsheet_id,
-            range=f"'{settings.APPLICATIONS_SHEET_NAME}'",
-            body={},
+    if updates:
+        _execute(
+            api.spreadsheets().values().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"valueInputOption": "RAW", "data": updates},
+            )
         )
-    )
-
-    _execute(
-        api.spreadsheets().values().update(
-            spreadsheetId=spreadsheet_id,
-            range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1",
-            valueInputOption="USER_ENTERED",
-            body={"values": matrix},
-        )
-    )
 
 
-def _read_rows(
-    api: Resource,
-    spreadsheet_id: str,
-) -> dict[str, Any]:
-    meta = metadata(api, spreadsheet_id)
-    ensure_sheet(api, spreadsheet_id, meta)
+def _read_rows(api: Resource, spreadsheet_id: str) -> dict[str, Any]:
+    meta = ensure_sheet(api, spreadsheet_id, metadata(api, spreadsheet_id))
 
     response = _execute(
         api.spreadsheets().values().get(
@@ -208,155 +230,123 @@ def _read_rows(
             range=f"'{settings.APPLICATIONS_SHEET_NAME}'",
         )
     )
-
     values = response.get("values", [])
 
     if not values:
-        headers = [
-            ID_COL,
-            "Company",
-            "Role",
-            "Application Status",
-            "Applied Date",
-        ]
-
         _execute(
             api.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id,
-                range=(
-                    f"'{settings.APPLICATIONS_SHEET_NAME}'!"
-                    f"A1:E1"
-                ),
+                range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1:E1",
                 valueInputOption="RAW",
-                body={"values": [headers]},
+                body={"values": [DEFAULT_HEADERS]},
             )
         )
+        values = [DEFAULT_HEADERS]
 
-        values = [headers]
-
-    headers = [
-        str(value).strip()
-        for value in values[0]
-    ]
+    headers = [str(value).strip() for value in values[0]]
 
     if ID_COL not in headers:
-        headers = [ID_COL, *headers]
-
-        updated = [headers]
-
-        for row in values[1:]:
-            updated.append(
-                [str(uuid.uuid4()), *row]
-            )
-
-        _execute(
-            api.spreadsheets().values().clear(
+        _add_id_column_safely(api, spreadsheet_id, meta, len(values))
+        response = _execute(
+            api.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
                 range=f"'{settings.APPLICATIONS_SHEET_NAME}'",
-                body={},
             )
         )
+        values = response.get("values", [DEFAULT_HEADERS])
+        headers = [str(value).strip() for value in values[0]]
 
-        _execute(
-            api.spreadsheets().values().update(
-                spreadsheetId=spreadsheet_id,
-                range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A1",
-                valueInputOption="RAW",
-                body={"values": updated},
-            )
+    _fill_missing_ids(api, spreadsheet_id, headers, values)
+
+    # Re-read only when IDs were potentially missing so returned data always has IDs.
+    response = _execute(
+        api.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{settings.APPLICATIONS_SHEET_NAME}'",
         )
-
-        values = updated
+    )
+    values = response.get("values", [headers])
+    headers = [str(value).strip() for value in values[0]]
 
     rows: list[dict[str, str]] = []
-    dirty = False
-
-    for row in values[1:]:
-        padded = list(row) + [""] * (
-            len(headers) - len(row)
-        )
-
+    for sheet_row, row in enumerate(values[1:], start=2):
+        padded = list(row) + [""] * (len(headers) - len(row))
         item = {
             headers[index]: str(padded[index])
             for index in range(len(headers))
         }
-
-        if not item.get(ID_COL):
-            item[ID_COL] = str(uuid.uuid4())
-            dirty = True
-
+        item["__sheet_row"] = str(sheet_row)
         rows.append(item)
-
-    if dirty:
-        _write_all(
-            api,
-            spreadsheet_id,
-            headers,
-            rows,
-        )
 
     return {
         "rows": rows,
         "columns": headers,
         "spreadsheet_name": meta["properties"]["title"],
-        "last_sync": datetime.now(
-            timezone.utc
-        ).isoformat(),
+        "last_sync": datetime.now(timezone.utc).isoformat(),
     }
 
 
-def read_rows(
-    spreadsheet_id: str,
-) -> dict[str, Any]:
+def read_rows(spreadsheet_id: str) -> dict[str, Any]:
     api = None
-
     try:
         api = create_service()
-        return _read_rows(api, spreadsheet_id)
-
+        data = _read_rows(api, spreadsheet_id)
+        for row in data["rows"]:
+            row.pop("__sheet_row", None)
+        return data
     finally:
         close_service(api)
 
 
-def create_row(
+def _ensure_headers(
+    api: Resource,
     spreadsheet_id: str,
-    row: dict[str, Any],
-) -> dict[str, str]:
-    api = None
+    headers: list[str],
+    incoming: dict[str, Any],
+) -> list[str]:
+    new_headers = list(headers)
+    for key in incoming:
+        if key != ID_COL and key not in new_headers:
+            new_headers.append(key)
 
+    if new_headers != headers:
+        start = len(headers)
+        end = len(new_headers) - 1
+        start_col = _column_letter(start)
+        end_col = _column_letter(end)
+        _execute(
+            api.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=f"'{settings.APPLICATIONS_SHEET_NAME}'!{start_col}1:{end_col}1",
+                valueInputOption="RAW",
+                body={"values": [new_headers[start:]]},
+            )
+        )
+
+    return new_headers
+
+
+def create_row(spreadsheet_id: str, row: dict[str, Any]) -> dict[str, str]:
+    api = None
     try:
         api = create_service()
         data = _read_rows(api, spreadsheet_id)
+        headers = _ensure_headers(api, spreadsheet_id, list(data["columns"]), row)
 
-        headers = list(data["columns"])
-
-        for key in row:
-            if key not in headers and key != ID_COL:
-                headers.append(key)
-
-        item = {
-            header: ""
-            for header in headers
-        }
-
-        item.update(
-            {
-                key: str(value)
-                for key, value in row.items()
-            }
-        )
-
+        item = {header: "" for header in headers}
+        item.update({key: str(value) for key, value in row.items() if key != ID_COL})
         item[ID_COL] = str(uuid.uuid4())
 
-        _write_all(
-            api,
-            spreadsheet_id,
-            headers,
-            [item, *data["rows"]],
+        _execute(
+            api.spreadsheets().values().append(
+                spreadsheetId=spreadsheet_id,
+                range=f"'{settings.APPLICATIONS_SHEET_NAME}'!A:A",
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [[item.get(header, "") for header in headers]]},
+            )
         )
-
         return item
-
     finally:
         close_service(api)
 
@@ -367,83 +357,89 @@ def update_row(
     row: dict[str, Any],
 ) -> dict[str, str]:
     api = None
-
     try:
         api = create_service()
         data = _read_rows(api, spreadsheet_id)
+        headers = _ensure_headers(api, spreadsheet_id, list(data["columns"]), row)
 
-        headers = list(data["columns"])
+        target = next(
+            (item for item in data["rows"] if item.get(ID_COL) == row_id),
+            None,
+        )
+        if target is None:
+            raise SheetsError("Application row was not found. Sync and try again.")
 
-        for key in row:
-            if key not in headers and key != ID_COL:
-                headers.append(key)
+        sheet_row = int(target["__sheet_row"])
+        saved = {
+            key: value
+            for key, value in target.items()
+            if key != "__sheet_row"
+        }
 
-        found = False
-        output: list[dict[str, str]] = []
-        saved: dict[str, str] | None = None
-
-        for item in data["rows"]:
-            if item.get(ID_COL) == row_id:
-                item = {
-                    **item,
-                    **{
-                        key: str(value)
-                        for key, value in row.items()
-                    },
-                    ID_COL: row_id,
+        updates = []
+        for key, value in row.items():
+            if key == ID_COL:
+                continue
+            saved[key] = str(value)
+            column_index = headers.index(key)
+            column = _column_letter(column_index)
+            updates.append(
+                {
+                    "range": f"'{settings.APPLICATIONS_SHEET_NAME}'!{column}{sheet_row}",
+                    "values": [[str(value)]],
                 }
-
-                saved = item
-                found = True
-
-            output.append(item)
-
-        if not found or saved is None:
-            raise SheetsError(
-                "Application row was not found. "
-                "Sync and try again."
             )
 
-        _write_all(
-            api,
-            spreadsheet_id,
-            headers,
-            output,
-        )
+        if updates:
+            _execute(
+                api.spreadsheets().values().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"valueInputOption": "USER_ENTERED", "data": updates},
+                )
+            )
 
+        saved[ID_COL] = row_id
         return saved
-
     finally:
         close_service(api)
 
 
-def delete_row(
-    spreadsheet_id: str,
-    row_id: str,
-) -> None:
+def delete_row(spreadsheet_id: str, row_id: str) -> None:
     api = None
-
     try:
         api = create_service()
         data = _read_rows(api, spreadsheet_id)
-
-        output = [
-            row
-            for row in data["rows"]
-            if row.get(ID_COL) != row_id
-        ]
-
-        if len(output) == len(data["rows"]):
-            raise SheetsError(
-                "Application row was not found."
-            )
-
-        _write_all(
-            api,
-            spreadsheet_id,
-            data["columns"],
-            output,
+        target = next(
+            (item for item in data["rows"] if item.get(ID_COL) == row_id),
+            None,
         )
+        if target is None:
+            raise SheetsError("Application row was not found.")
 
+        meta = metadata(api, spreadsheet_id)
+        props = _sheet_properties(meta)
+        if not props:
+            raise SheetsError("Applications sheet was not found.")
+
+        sheet_row = int(target["__sheet_row"])
+        _execute(
+            api.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": props["sheetId"],
+                                    "dimension": "ROWS",
+                                    "startIndex": sheet_row - 1,
+                                    "endIndex": sheet_row,
+                                }
+                            }
+                        }
+                    ]
+                },
+            )
+        )
     finally:
         close_service(api)
