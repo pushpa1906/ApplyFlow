@@ -660,21 +660,11 @@ test.describe("ApplyFlow Demo", () => {
 
     await expect(applicationRow).toBeVisible();
 
-    // Applied Date
-    await expect(
-      applicationRow.getByRole("cell", {
-        name: "2026-08-08",
-        exact: true,
-      }),
-    ).toBeVisible();
+    // Applied Date should remain the date entered by the user
+    await expect(applicationRow).toContainText("2026-08-08");
 
-    // Follow-up should be generated automatically
-    await expect(
-      applicationRow.getByRole("cell", {
-        name: "08/15/2026",
-        exact: true,
-      }),
-    ).toBeVisible();
+    // Follow-up should automatically be 7 days after Applied Date
+    await expect(applicationRow).toContainText("08/15/2026");
   });
   //------------------------------9-------------------------
   test("dashboard follow-up cards open the correct application filters", async ({
@@ -712,7 +702,11 @@ test.describe("ApplyFlow Demo", () => {
     ).toBeVisible();
 
     // The active filter should be Follow Up: Today
-    await expect(page.getByText(/Follow Up.*Today/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Follow Up Date.*Today/i,
+      }),
+    ).toBeVisible();
 
     /*
      * Return to Dashboard.
@@ -731,7 +725,11 @@ test.describe("ApplyFlow Demo", () => {
       }),
     ).toBeVisible();
 
-    await expect(page.getByText(/Follow Up.*Upcoming/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Follow Up Date.*Upcoming/i,
+      }),
+    ).toBeVisible();
 
     /*
      * Return to Dashboard.
@@ -750,7 +748,11 @@ test.describe("ApplyFlow Demo", () => {
       }),
     ).toBeVisible();
 
-    await expect(page.getByText(/Follow Up.*Overdue/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /Follow Up Date.*Overdue/i,
+      }),
+    ).toBeVisible();
   });
 
   //------------------------------10-------------------------
@@ -822,12 +824,7 @@ test.describe("ApplyFlow Demo", () => {
      * Applied should initially generate
      * the automatic follow-up date.
      */
-    await expect(
-      applicationRow.getByRole("cell", {
-        name: "08/15/2026",
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(applicationRow).toContainText("08/15/2026");
 
     /*
      * STEP 3
