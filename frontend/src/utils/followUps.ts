@@ -24,6 +24,17 @@ export const FOLLOW_UP_ENABLED_STATUSES = [
  */
 export const FOLLOW_UP_DAYS = 7;
 
+function normalizeStatus(status: string): string {
+  return status
+    .trim()
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ");
+}
+
+const NORMALIZED_FOLLOW_UP_STATUSES =
+  FOLLOW_UP_ENABLED_STATUSES.map(normalizeStatus);
+
 
 /* =========================================================
    Check whether status supports follow-ups
@@ -32,8 +43,8 @@ export const FOLLOW_UP_DAYS = 7;
 export function followUpEnabled(
   status: string,
 ): boolean {
-  return FOLLOW_UP_ENABLED_STATUSES.includes(
-    status,
+  return NORMALIZED_FOLLOW_UP_STATUSES.includes(
+    normalizeStatus(status),
   );
 }
 
