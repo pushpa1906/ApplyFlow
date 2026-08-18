@@ -29,6 +29,10 @@ interface Props {
   onSort: (column: string) => void;
   onEdit: (row: ApplicationRow) => void;
   onDelete: (id: string) => void;
+  onFollowUp: (
+  id: string,
+) => Promise<void> | void;
+
 
   onCellUpdate: (
     id: string,
@@ -52,6 +56,7 @@ export default function Applications({
   onSort,
   onEdit,
   onDelete,
+  onFollowUp,
   onCellUpdate,
   onNew,
 }: Props) {
@@ -100,6 +105,7 @@ export default function Applications({
         onEdit={onEdit}
         onDelete={onDelete}
         onCellUpdate={onCellUpdate}
+        onFollowUp={onFollowUp}
       />
     </div>
   );

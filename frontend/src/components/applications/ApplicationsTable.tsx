@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Bell, Pencil, Trash2 } from "lucide-react";
 
 import { isHiddenColumn } from "../../constants/hiddenColumns";
 
@@ -7,7 +7,12 @@ import type { ApplicationRow } from "../../types/application";
 
 import Dropdown from "../common/Dropdown";
 import { getDropdownOptions } from "../../utils/getDropdownOptions";
-import { isFollowUpToday, isFollowUpOverdue } from "../../utils/followUps";
+import {
+  isFollowUpToday,
+  isFollowUpOverdue,
+  FOLLOW_UP_DAYS,
+} from "../../utils/followUps";
+import { dateOnly } from "../../utils/dates";
 
 interface Props {
   rows: ApplicationRow[];
@@ -17,6 +22,7 @@ interface Props {
   onSort: (column: string) => void;
   onEdit: (row: ApplicationRow) => void;
   onDelete: (id: string) => void;
+  onFollowUp: (id: string) => Promise<void> | void;
   onCellUpdate: (
     id: string,
     column: string,
@@ -32,10 +38,19 @@ export default function ApplicationsTable({
   onSort,
   onEdit,
   onDelete,
+  onFollowUp,
   onCellUpdate,
 }: Props) {
   const visibleColumns = columns.filter((column) => !isHiddenColumn(column));
+
   const [updatingCell, setUpdatingCell] = useState<string | null>(null);
+
+  /*
+   * Mark a Today/Overdue application as followed up.
+   *
+   * Application Last Updated = today
+   * Follow Up Date = today + 7 days
+   */
 
   return (
     <div className="table-card">
@@ -60,100 +75,128 @@ export default function ApplicationsTable({
           </thead>
 
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.__applyflow_id}>
-                {visibleColumns.map((column) => {
-                  const dropdownOptions = getDropdownOptions(column);
+            {rows.map((row) => {
+              const followUpDate = String(row["Follow Up Date"] ?? "");
 
-                  const value = String(row[column] ?? "");
+              const applicationStatus = String(row["Application Status"] ?? "");
 
-                  return (
-                    <td key={column}>
-                      {dropdownOptions ? (
-                        <Dropdown
-                          value={value}
-                          options={dropdownOptions}
-                          disabled={
-                            updatingCell === `${row.__applyflow_id}-${column}`
-                          }
-                          onChange={async (newValue) => {
-                            const cellId = `${row.__applyflow_id}-${column}`;
+              const followUpDue =
+                isFollowUpToday(followUpDate, applicationStatus) ||
+                isFollowUpOverdue(followUpDate, applicationStatus);
 
+              const followUpUpdateId = `${row.__applyflow_id}-follow-up`;
+
+              return (
+                <tr key={row.__applyflow_id}>
+                  {visibleColumns.map((column) => {
+                    const dropdownOptions = getDropdownOptions(column);
+
+                    const value = String(row[column] ?? "");
+
+                    return (
+                      <td key={column}>
+                        {dropdownOptions ? (
+                          <Dropdown
+                            value={value}
+                            options={dropdownOptions}
+                            disabled={
+                              updatingCell === `${row.__applyflow_id}-${column}`
+                            }
+                            onChange={async (newValue) => {
+                              const cellId = `${row.__applyflow_id}-${column}`;
+
+                              try {
+                                setUpdatingCell(cellId);
+
+                                await onCellUpdate(
+                                  row.__applyflow_id,
+                                  column,
+                                  newValue,
+                                );
+                              } finally {
+                                setUpdatingCell(null);
+                              }
+                            }}
+                          />
+                        ) : column === "Job Link" ||
+                          column === "Company Website/Career Page" ? (
+                          value ? (
+                            <a
+                              href={value}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="table-link"
+                            >
+                              Open ↗
+                            </a>
+                          ) : (
+                            "-"
+                          )
+                        ) : (
+                          <>
+                            <span>{value}</span>
+
+                            {column === "Follow Up Date" && (
+                              <>
+                                {isFollowUpToday(value, applicationStatus) && (
+                                  <div className="follow-up-badge today">
+                                    🔔 Today
+                                  </div>
+                                )}
+
+                                {isFollowUpOverdue(
+                                  value,
+                                  applicationStatus,
+                                ) && (
+                                  <div className="follow-up-badge overdue">
+                                    ⚠ Overdue
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    );
+                  })}
+
+                  <td className="actions-column">
+                    <div className="row-actions">
+                      {followUpDue && (
+                        <button
+                          onClick={async () => {
                             try {
-                              setUpdatingCell(cellId);
+                              setUpdatingCell(followUpUpdateId);
 
-                              await onCellUpdate(
-                                row.__applyflow_id,
-                                column,
-                                newValue,
-                              );
+                              await onFollowUp(row.__applyflow_id);
                             } finally {
                               setUpdatingCell(null);
                             }
                           }}
-                        />
-                      ) : column === "Job Link" ||
-                        column === "Company Website/Career Page" ? (
-                        value ? (
-                          <a
-                            href={value}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="table-link"
-                          >
-                            Open ↗
-                          </a>
-                        ) : (
-                          "-"
-                        )
-                      ) : (
-                        <>
-                          <span>{value}</span>
-
-                          {column === "Follow Up Date" && (
-                            <>
-                              {isFollowUpToday(
-                                value,
-                                row["Application Status"],
-                              ) && (
-                                <div className="follow-up-badge today">
-                                  🔔 Today
-                                </div>
-                              )}
-
-                              {isFollowUpOverdue(
-                                value,
-                                row["Application Status"],
-                              ) && (
-                                <div className="follow-up-badge overdue">
-                                  ⚠ Overdue
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </>
+                          disabled={updatingCell === followUpUpdateId}
+                          aria-label="Follow Up"
+                          title="Follow Up"
+                        >
+                          <Bell size={16} />
+                        </button>
                       )}
-                    </td>
-                  );
-                })}
 
-                <td className="actions-column">
-                  <div className="row-actions">
-                    <button onClick={() => onEdit(row)} aria-label="Edit">
-                      <Pencil size={16} />
-                    </button>
+                      <button onClick={() => onEdit(row)} aria-label="Edit">
+                        <Pencil size={16} />
+                      </button>
 
-                    <button
-                      className="delete-action"
-                      onClick={() => onDelete(row.__applyflow_id)}
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      <button
+                        className="delete-action"
+                        onClick={() => onDelete(row.__applyflow_id)}
+                        aria-label="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

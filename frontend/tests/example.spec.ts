@@ -622,22 +622,70 @@ test.describe("ApplyFlow Demo", () => {
     await openDemo(page);
 
     // Go to Applications
-    await page.getByText("Applications", { exact: true }).first().click();
+    await page
+      .getByText("Applications", {
+        exact: true,
+      })
+      .first()
+      .click();
 
-    // Open form
-    await page.getByRole("button", { name: /new application/i }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "Applications",
+        exact: true,
+      }),
+    ).toBeVisible();
 
-    await page.getByLabel(/Company/).fill("Playwright Follow Up Company");
-    await page.getByLabel(/Role/).fill("Frontend Developer");
-    await page.getByLabel(/Applied Date/).fill("2026-08-08");
+    /*
+    * STEP 1
+    * Open the New Application form.
+    */
+    await page
+      .getByRole("button", {
+        name: /new application/i,
+      })
+      .click();
 
-    // Explicitly select Applied.
-    // Follow-up dates are generated for active application statuses.
+    await expect(
+      page.getByRole("heading", {
+        name: "New application",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    /*
+    * STEP 2
+    * Fill application details.
+    */
+    await page
+      .getByLabel(/Company/)
+      .fill("Playwright Follow Up Company");
+
+    await page
+      .getByLabel(/Role/)
+      .fill("Frontend Developer");
+
+    // Fixed input is intentional.
+    // We verify that Applied Date remains unchanged.
+    await page
+      .getByLabel(/Applied Date/)
+      .fill("2026-08-08");
+
+    /*
+    * STEP 3
+    * Set status to Applied.
+    *
+    * Applied is an active status and should
+    * receive an automatic follow-up.
+    */
     const statusField = page.locator("label").filter({
       hasText: "Application Status",
     });
 
-    await statusField.getByRole("button").first().click();
+    await statusField
+      .getByRole("button")
+      .first()
+      .click();
 
     await statusField
       .getByRole("button", {
@@ -646,25 +694,76 @@ test.describe("ApplyFlow Demo", () => {
       })
       .click();
 
-    // Save
+    /*
+    * STEP 4
+    * Calculate the expected Follow Up Date.
+    *
+    * Follow Up Date = today + 7 days.
+    */
+    const expectedFollowUp = new Date();
+
+    expectedFollowUp.setHours(0, 0, 0, 0);
+
+    expectedFollowUp.setDate(
+      expectedFollowUp.getDate() + 7,
+    );
+
+    const expectedFollowUpDate = [
+      String(
+        expectedFollowUp.getMonth() + 1,
+      ).padStart(2, "0"),
+
+      String(
+        expectedFollowUp.getDate(),
+      ).padStart(2, "0"),
+
+      expectedFollowUp.getFullYear(),
+    ].join("/");
+
+    /*
+    * STEP 5
+    * Save the application.
+    */
     await page
       .getByRole("button", {
         name: "Save application",
       })
       .click();
 
-    // Verify creation succeeded instead of using modal disappearance
-    const applicationRow = page.getByRole("row").filter({
-      hasText: "Playwright Follow Up Company",
-    });
+    await expect(
+      page.getByRole("heading", {
+        name: "New application",
+        exact: true,
+      }),
+    ).not.toBeVisible();
+
+    /*
+    * STEP 6
+    * Find the newly created application.
+    */
+    const applicationRow = page
+      .getByRole("row")
+      .filter({
+        hasText: "Playwright Follow Up Company",
+      });
 
     await expect(applicationRow).toBeVisible();
 
-    // Applied Date should remain the date entered by the user
-    await expect(applicationRow).toContainText("2026-08-08");
+    /*
+    * Applied Date should remain exactly
+    * what the user entered.
+    */
+    await expect(applicationRow).toContainText(
+      "2026-08-08",
+    );
 
-    // Follow-up should automatically be 7 days after Applied Date
-    await expect(applicationRow).toContainText("08/15/2026");
+    /*
+    * Follow Up Date should automatically
+    * be today + 7 days.
+    */
+    await expect(applicationRow).toContainText(
+      expectedFollowUpDate,
+    );
   });
   //------------------------------9-------------------------
   test("dashboard follow-up cards open the correct application filters", async ({
@@ -756,154 +855,408 @@ test.describe("ApplyFlow Demo", () => {
   });
 
   //------------------------------10-------------------------
-  test("changing application status recalculates the follow up date", async ({
-    page,
-  }) => {
-    await openDemo(page);
-    // Wait until Demo mode has finished rendering
-    await expect(
-      page.getByRole("heading", {
-        name: "Dashboard",
-        exact: true,
-      }),
-    ).toBeVisible();
+test("changing application status recalculates the follow up date", async ({
+  page,
+}) => {
+  await openDemo(page);
 
-    // Go to Applications
-    await page.getByText("Applications", { exact: true }).first().click();
+  // Go to Applications
+  await page
+    .getByText("Applications", {
+      exact: true,
+    })
+    .first()
+    .click();
 
-    /*
-     * STEP 1
-     * Create a new application.
-     */
-    await page.getByRole("button", { name: /new application/i }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Applications",
+      exact: true,
+    }),
+  ).toBeVisible();
 
-    await page.getByLabel(/Company/).fill("Playwright Status Change Company");
+  /*
+   * STEP 1
+   * Create a new application.
+   */
+  await page
+    .getByRole("button", {
+      name: /new application/i,
+    })
+    .click();
 
-    await page.getByLabel(/Role/).fill("Frontend Developer");
+  await page
+    .getByLabel(/Company/)
+    .fill("Playwright Status Change Company");
 
-    await page.getByLabel(/Applied Date/).fill("2026-08-08");
+  await page
+    .getByLabel(/Role/)
+    .fill("Frontend Developer");
 
-    // Set initial status to Applied
-    const createStatusField = page.locator("label").filter({
-      hasText: "Application Status",
-    });
+  // Fixed Applied Date is intentional test input.
+  await page
+    .getByLabel(/Applied Date/)
+    .fill("2026-08-08");
 
-    await createStatusField.getByRole("button").first().click();
-
-    await createStatusField
-      .getByRole("button", {
-        name: "Applied",
-        exact: true,
-      })
-      .click();
-
-    // Save
-    await page
-      .getByRole("button", {
-        name: "Save application",
-      })
-      .click();
-
-    await expect(
-      page.getByRole("heading", {
-        name: "New application",
-        exact: true,
-      }),
-    ).not.toBeVisible();
-    /*
-     * STEP 2
-     * Find the new row.
-     */
-    let applicationRow = page.getByRole("row").filter({
-      hasText: "Playwright Status Change Company",
-    });
-
-    await expect(applicationRow).toBeVisible();
-
-    /*
-     * Applied should initially generate
-     * the automatic follow-up date.
-     */
-    await expect(applicationRow).toContainText("08/15/2026");
-
-    /*
-     * STEP 3
-     * Edit the application.
-     */
-    await applicationRow
-      .getByRole("button", {
-        name: "Edit",
-      })
-      .click();
-
-    await expect(
-      page.getByRole("heading", {
-        name: "Edit application",
-        exact: true,
-      }),
-    ).toBeVisible();
-
-    /*
-     * STEP 4
-     * Change status from Applied → Rejected.
-     */
-    const editStatusField = page.locator("label").filter({
-      hasText: "Application Status",
-    });
-
-    await editStatusField.getByRole("button").first().click();
-
-    await editStatusField
-      .getByRole("button", {
-        name: "Rejected",
-        exact: true,
-      })
-      .click();
-
-    /*
-     * Save the edited application.
-     */
-    await page
-      .getByRole("button", {
-        name: "Save application",
-      })
-      .click();
-
-    await expect(
-      page.getByRole("heading", {
-        name: "Edit application",
-        exact: true,
-      }),
-    ).not.toBeVisible();
-
-    /*
-     * STEP 5
-     * Find the row again after React updates.
-     */
-    applicationRow = page.getByRole("row").filter({
-      hasText: "Playwright Status Change Company",
-    });
-
-    await expect(applicationRow).toBeVisible();
-
-    /*
-     * Verify the status changed.
-     */
-    await expect(
-      applicationRow.getByText("Rejected", {
-        exact: true,
-      }),
-    ).toBeVisible();
-
-    /*
-     * Rejected applications should no longer
-     * have an active follow-up date.
-     */
-    await expect(
-      applicationRow.getByRole("cell", {
-        name: "08/15/2026",
-        exact: true,
-      }),
-    ).not.toBeVisible();
+  /*
+   * Set initial status to Applied.
+   */
+  const createStatusField = page.locator("label").filter({
+    hasText: "Application Status",
   });
+
+  await createStatusField
+    .getByRole("button")
+    .first()
+    .click();
+
+  await createStatusField
+    .getByRole("button", {
+      name: "Applied",
+      exact: true,
+    })
+    .click();
+
+  /*
+   * Calculate expected automatic Follow Up Date.
+   *
+   * Follow Up Date = today + 7 days.
+   */
+  const expectedFollowUp = new Date();
+
+  expectedFollowUp.setHours(0, 0, 0, 0);
+
+  expectedFollowUp.setDate(
+    expectedFollowUp.getDate() + 7,
+  );
+
+  const expectedFollowUpDate = [
+    String(
+      expectedFollowUp.getMonth() + 1,
+    ).padStart(2, "0"),
+
+    String(
+      expectedFollowUp.getDate(),
+    ).padStart(2, "0"),
+
+    expectedFollowUp.getFullYear(),
+  ].join("/");
+
+  /*
+   * Save new application.
+   */
+  await page
+    .getByRole("button", {
+      name: "Save application",
+    })
+    .click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "New application",
+      exact: true,
+    }),
+  ).not.toBeVisible();
+
+  /*
+   * STEP 2
+   * Find the newly created application.
+   */
+  let applicationRow = page
+    .getByRole("row")
+    .filter({
+      hasText: "Playwright Status Change Company",
+    });
+
+  await expect(applicationRow).toBeVisible();
+
+  /*
+   * Applied should automatically receive
+   * a follow-up 7 days from today.
+   */
+  await expect(applicationRow).toContainText(
+    expectedFollowUpDate,
+  );
+
+  /*
+   * STEP 3
+   * Edit the application.
+   */
+  await applicationRow
+    .getByRole("button", {
+      name: "Edit",
+      exact: true,
+    })
+    .click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Edit application",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  /*
+   * STEP 4
+   * Change status:
+   *
+   * Applied → Rejected
+   *
+   * Rejected does not support follow-ups.
+   */
+  const editStatusField = page.locator("label").filter({
+    hasText: "Application Status",
+  });
+
+  await editStatusField
+    .getByRole("button")
+    .first()
+    .click();
+
+  await editStatusField
+    .getByRole("button", {
+      name: "Rejected",
+      exact: true,
+    })
+    .click();
+
+  /*
+   * Save the edited application.
+   */
+  await page
+    .getByRole("button", {
+      name: "Save application",
+    })
+    .click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Edit application",
+      exact: true,
+    }),
+  ).not.toBeVisible();
+
+  /*
+   * STEP 5
+   * Find the row again after React updates.
+   */
+  applicationRow = page
+    .getByRole("row")
+    .filter({
+      hasText: "Playwright Status Change Company",
+    });
+
+  await expect(applicationRow).toBeVisible();
+
+  /*
+   * Verify status changed.
+   */
+  await expect(
+    applicationRow.getByText("Rejected", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  /*
+   * Rejected applications should no longer
+   * have the previously generated
+   * Follow Up Date.
+   */
+  await expect(
+    applicationRow.getByRole("cell", {
+      name: expectedFollowUpDate,
+      exact: true,
+    }),
+  ).not.toBeVisible();
+
+  /*
+   * The Follow Up action should also
+   * not be available for Rejected.
+   */
+  await expect(
+    applicationRow.getByRole("button", {
+      name: "Follow Up",
+      exact: true,
+    }),
+  ).not.toBeVisible();
+});
+
+//------------------------------11-------------------------
+test("user can complete a due follow up and schedule the next follow up", async ({
+  page,
+}) => {
+  await openDemo(page);
+
+  // Go to Applications
+  await page
+    .getByText("Applications", {
+      exact: true,
+    })
+    .first()
+    .click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Applications",
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  /*
+   * STEP 1
+   * Find any application that is currently
+   * due today and has the Follow Up action.
+   */
+  const dueRow = page
+    .getByRole("row")
+    .filter({
+      has: page.getByRole("cell", {
+        name: /🔔 Today/,
+      }),
+    })
+    .filter({
+      has: page.getByRole("button", {
+        name: "Follow Up",
+        exact: true,
+      }),
+    })
+    .first();
+
+  await expect(dueRow).toBeVisible();
+
+  /*
+   * STEP 2
+   * Capture stable values BEFORE changing
+   * the follow-up date.
+   *
+   * Cell 0 = Company
+   * Cell 1 = Role
+   */
+  const cells = dueRow.getByRole("cell");
+
+  const company = await cells
+    .nth(0)
+    .innerText();
+
+  const role = await cells
+    .nth(1)
+    .innerText();
+
+  /*
+   * STEP 3
+   * Build a stable row locator.
+   *
+   * We don't use "Today" as the permanent
+   * locator because that text disappears
+   * after completing the follow-up.
+   */
+  const applicationRow = page
+    .getByRole("row")
+    .filter({
+      has: page.getByRole("cell", {
+        name: company,
+        exact: true,
+      }),
+    })
+    .filter({
+      has: page.getByRole("cell", {
+        name: role,
+        exact: true,
+      }),
+    })
+    .first();
+
+  await expect(applicationRow).toBeVisible();
+
+  /*
+   * STEP 4
+   * Verify Follow Up is available.
+   */
+  const followUpButton =
+    applicationRow.getByRole("button", {
+      name: "Follow Up",
+      exact: true,
+    });
+
+  await expect(
+    followUpButton,
+  ).toBeVisible();
+
+  /*
+   * STEP 5
+   * Calculate the expected next Follow Up Date.
+   *
+   * Next Follow Up = today + 7 days.
+   */
+  const expectedFollowUp = new Date();
+
+  expectedFollowUp.setHours(
+    0,
+    0,
+    0,
+    0,
+  );
+
+  expectedFollowUp.setDate(
+    expectedFollowUp.getDate() + 7,
+  );
+
+  const expectedFollowUpDate = [
+    String(
+      expectedFollowUp.getMonth() + 1,
+    ).padStart(2, "0"),
+
+    String(
+      expectedFollowUp.getDate(),
+    ).padStart(2, "0"),
+
+    expectedFollowUp.getFullYear(),
+  ].join("/");
+
+  /*
+   * STEP 6
+   * Complete the follow-up.
+   */
+  await followUpButton.click();
+
+  /*
+   * STEP 7
+   * Verify the new Follow Up Date.
+   */
+  await expect(applicationRow).toContainText(
+    expectedFollowUpDate,
+  );
+
+  /*
+   * STEP 8
+   * The application should no longer
+   * be marked as due Today.
+   */
+  await expect(
+    applicationRow.getByRole("cell", {
+      name: /🔔 Today/,
+    }),
+  ).not.toBeVisible();
+
+  /*
+   * It should not be Overdue.
+   */
+  await expect(
+    applicationRow.getByRole("cell", {
+      name: /⚠ Overdue/,
+    }),
+  ).not.toBeVisible();
+
+  /*
+   * STEP 9
+   * Follow Up should disappear until
+   * the new date becomes due.
+   */
+  await expect(
+    applicationRow.getByRole("button", {
+      name: "Follow Up",
+      exact: true,
+    }),
+  ).not.toBeVisible();
+});
 });

@@ -318,41 +318,29 @@ export default function App() {
        * ------------------------------------------------
        */
 
-      if (!editing) {
-        const appliedDate =
-          row["Applied Date"] ?? "";
+        if (!editing) {
+          const lastUpdated = dateOnly(new Date());
 
-        const status =
-          row[
-            "Application Status"
-          ] ?? "";
+          const status = row["Application Status"] ?? "";
 
-        /*
-         * A newly created application's
-         * Last Updated starts at its
-         * Applied Date.
-         */
-        dataToSave[
-          "Application Last Updated"
-        ] = appliedDate;
+          /*
+          * A newly created application is considered
+          * updated today.
+          */
+          dataToSave["Application Last Updated"] =
+            lastUpdated;
 
-        /*
-         * Only active statuses receive
-         * automatic follow-ups.
-         */
-        dataToSave[
-          "Follow Up Date"
-        ] =
-          followUpEnabled(status)
-            ? getAutomaticFollowUpDate(
-                appliedDate,
-              )
-            : "";
+          /*
+          * Active statuses automatically receive
+          * a follow-up 7 days from today.
+          */
+          dataToSave["Follow Up Date"] =
+            followUpEnabled(status)
+              ? getAutomaticFollowUpDate(lastUpdated)
+              : "";
 
-        await workspace.create(
-          dataToSave,
-        );
-      }
+          await workspace.create(dataToSave);
+        }
 
       /*
        * ------------------------------------------------
@@ -706,7 +694,21 @@ export default function App() {
                 onDelete={
                   deleteApplication
                 }
+                onFollowUp={async (id) => {
+                const lastUpdated = dateOnly(new Date());
 
+                const followUpDate =
+                  getAutomaticFollowUpDate(lastUpdated);
+
+                await workspace.update(id, {
+                  "Application Last Updated": lastUpdated,
+                  "Follow Up Date": followUpDate,
+                });
+
+                workspace.setToast(
+                  `Follow-up completed. Next follow-up: ${followUpDate}`,
+                );
+              }}
                 /*
                  * --------------------------------------
                  * INLINE CELL UPDATE

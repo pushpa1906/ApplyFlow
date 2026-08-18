@@ -9,13 +9,15 @@
         "googleapiclient",
         "gunicorn",
         "Jobright",
+        "vercel",
+        "vite",
         "whitenoise"
     ],
     "workbench.colorCustomizations": {
         "activityBar.activeBackground": "#2f7c47",
-        "activityBar.background": "#2f7c47",
-        "activityBar.foreground": "#e7e7e7",
-        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBar.background": "#f6f1d8",
+        "activityBar.foreground": "#0a0a0a",
+        "activityBar.inactiveForeground": "#03030399",
         "activityBarBadge.background": "#422c74",
         "activityBarBadge.foreground": "#e7e7e7",
         "activityBarTop.activeBackground": "#2f7c47",
